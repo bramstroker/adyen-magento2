@@ -430,9 +430,10 @@ class Order extends AbstractHelper
                 ->addStateFilter($state)
                 ->getFirstItem();
 
-            if ($statusObject->getState() == $state) {
+            $stateLinkedToStatus = $statusObject->getData('state');
+            if ($stateLinkedToStatus == $state) {
                 // Exit function if fitting state is found
-                $order->setState($statusObject->getState());
+                $order->setState($stateLinkedToStatus);
                 $this->adyenLogger->addAdyenNotificationCronjob('State is changed to  ' . $statusObject->getState());
 
                 return $order;

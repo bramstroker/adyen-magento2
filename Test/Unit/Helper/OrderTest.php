@@ -1,0 +1,154 @@
+<?php
+
+/**
+ * Adyen Payment module (https://www.adyen.com/)
+ *
+ * Copyright (c) 2015 Adyen BV (https://www.adyen.com/)
+ * See LICENSE.txt for license details.
+ *
+ * Author: Adyen <magento@adyen.com>
+ */
+namespace Adyen\Payment\Tests\Helper;
+
+use Adyen\Payment\Helper\AdyenOrderPayment;
+use Adyen\Payment\Helper\ChargedCurrency;
+use Adyen\Payment\Helper\Config;
+use Adyen\Payment\Helper\Data;
+use Adyen\Payment\Helper\Order;
+use Adyen\Payment\Helper\PaymentMethods;
+use Adyen\Payment\Model\AdyenAmountCurrency;
+use Adyen\Payment\Model\Notification;
+use Adyen\Payment\Model\ResourceModel\Order\Payment\CollectionFactory as OrderPaymentCollectionFactory;
+use Adyen\Payment\Logger\AdyenLogger;
+use Magento\Framework\Api\SearchCriteriaBuilder;
+use Magento\Framework\App\Helper\Context;
+use Magento\Framework\DB\TransactionFactory;
+use Magento\Framework\Notification\NotifierPool;
+use Magento\Sales\Model\Order as MagentoOrder;
+use Magento\Sales\Model\Order\Email\Sender\OrderSender;
+use Magento\Sales\Model\Order\Payment\Transaction\Builder;
+use Magento\Sales\Model\OrderRepository;
+use Magento\Sales\Model\ResourceModel\Order\Status\Collection as OrderStatusCollection;
+use Magento\Sales\Model\ResourceModel\Order\Status\CollectionFactory as OrderStatusCollectionFactory;
+use PHPUnit\Framework\TestCase;
+
+class OrderTest extends TestCase
+{
+    /** @var Order */
+    private $orderHelper;
+
+    public function setUp(): void
+    {
+        $context = $this->getSimpleMock(Context::class);
+        $builder = $this->getSimpleMock(Builder::class);
+
+        $dataHelper = $this->getSimpleMock(Data::class);
+        $dataHelper->method('formatAmount')->willReturn('EUR123');
+
+        $adyenLogger = $this->getSimpleMock(AdyenLogger::class);
+        $orderSender = $this->getSimpleMock(OrderSender::class);
+        $transactionFactory = $this->createGeneratedMock(TransactionFactory::class);
+
+        $chargedCurrency = $this->getSimpleMock(ChargedCurrency::class);
+        $chargedCurrency->method('getOrderAmountCurrency')->willReturn(new AdyenAmountCurrency(1000, 'EUR'));
+
+        $adyenPaymentOrderHelper = $this->getSimpleMock(AdyenOrderPayment::class);
+        $adyenPaymentOrderHelper->method('isFullAmountFinalized')->willReturn(true);
+
+        $configHelper = $this->getSimpleMock(Config::class);
+        $configHelper->method('getConfigData')->willReturn('payment_authorized');
+
+        $orderStatus = $this->createGeneratedMock(MagentoOrder\Status::class);
+        //$orderStatus->method('getState')->willReturn(MagentoOrder::STATE_NEW);
+        $orderStatus->method('getData')->with('state')->willReturn(MagentoOrder::STATE_PROCESSING);
+
+        $orderStatusCollection = $this->getSimpleMock(OrderStatusCollection::class);
+        $orderStatusCollection->method('addFieldToFilter')->willReturn($orderStatusCollection);
+        $orderStatusCollection->method('joinStates')->willReturn($orderStatusCollection);
+        $orderStatusCollection->method('addStateFilter')->willReturn($orderStatusCollection);
+        $orderStatusCollection->method('getFirstItem')->willReturn($orderStatus);
+
+        $orderStatusCollectionFactory = $this->createGeneratedMock(OrderStatusCollectionFactory::class);
+        $orderStatusCollectionFactory->method('create')->willReturn($orderStatusCollection);
+
+
+        $searchCriteriaBuilder = $this->getSimpleMock(SearchCriteriaBuilder::class);
+        $orderRepository = $this->getSimpleMock(OrderRepository::class);
+        $notifierPool = $this->getSimpleMock(NotifierPool::class);
+        $orderPaymentCollectionFactory = $this->createGeneratedMock(OrderPaymentCollectionFactory::class);
+        $paymentMethodsHelper = $this->getSimpleMock(PaymentMethods::class);
+
+        $this->orderHelper = new Order(
+            $context,
+            $builder,
+            $dataHelper,
+            $adyenLogger,
+            $orderSender,
+            $transactionFactory,
+            $chargedCurrency,
+            $adyenPaymentOrderHelper,
+            $configHelper,
+            $orderStatusCollectionFactory,
+            $searchCriteriaBuilder,
+            $orderRepository,
+            $notifierPool,
+            $orderPaymentCollectionFactory,
+            $paymentMethodsHelper
+        );
+    }
+
+    public function testFinalizeOrderFinalized()
+    {
+        $order = $this->createOrder('testStatus');
+        $notification = $this->createWebhook();
+
+        //$this->orderHelper->expects($this->once())->method('setState');
+        $order->expects($this->once())->method('setState')->with(MagentoOrder::STATE_PROCESSING);
+        $this->orderHelper->finalizeOrder($order, $notification);
+    }
+
+    /**
+     * TODO: Move this function to a parent
+     */
+    protected function getSimpleMock($originalClassName)
+    {
+        return $this->getMockBuilder($originalClassName)
+            ->disableOriginalConstructor()
+            ->getMock();
+    }
+
+    /**
+     * Mock a class dynamically generated by Magento
+     * TODO: Move this function to a parent
+     */
+    protected function createGeneratedMock(string $originalClassName)
+    {
+        return $this->getMockBuilder($originalClassName)
+            ->disableOriginalConstructor()
+            ->disableOriginalClone()
+            ->disableArgumentCloning()
+            ->getMock();
+    }
+
+    protected function createOrder(string $status)
+    {
+        $orderPaymentMock = $this->getMockBuilder(MagentoOrder\Payment::class)->disableOriginalConstructor()->getMock();
+        $orderPaymentMock->method('getMethod')->willReturn('adyen_cc');
+
+        $orderMock = $this->getMockBuilder(MagentoOrder::class)->disableOriginalConstructor()->getMock();
+        $orderMock->method('getStatus')->willReturn($status);
+        $orderMock->method('getPayment')->willReturn($orderPaymentMock);
+
+        return $orderMock;
+    }
+
+    protected function createWebhook()
+    {
+        $notificationMock = $this->getMockBuilder(Notification::class)->disableOriginalConstructor()->getMock();
+        $notificationMock->method('getAmountValue')->willReturn(1000);
+        $notificationMock->method('getEventCode')->willReturn('AUTHORISATION');
+        $notificationMock->method('getAmountCurrency')->willReturn('EUR');
+
+        return $notificationMock;
+    }
+}

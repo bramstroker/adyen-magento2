@@ -39,15 +39,8 @@ class OrderTest extends TestCase
 
     public function setUp(): void
     {
-        $context = $this->getSimpleMock(Context::class);
-        $builder = $this->getSimpleMock(Builder::class);
-
         $dataHelper = $this->getSimpleMock(Data::class);
         $dataHelper->method('formatAmount')->willReturn('EUR123');
-
-        $adyenLogger = $this->getSimpleMock(AdyenLogger::class);
-        $orderSender = $this->getSimpleMock(OrderSender::class);
-        $transactionFactory = $this->createGeneratedMock(TransactionFactory::class);
 
         $chargedCurrency = $this->getSimpleMock(ChargedCurrency::class);
         $chargedCurrency->method('getOrderAmountCurrency')->willReturn(new AdyenAmountCurrency(1000, 'EUR'));
@@ -58,42 +51,12 @@ class OrderTest extends TestCase
         $configHelper = $this->getSimpleMock(Config::class);
         $configHelper->method('getConfigData')->willReturn('payment_authorized');
 
-        $orderStatus = $this->createGeneratedMock(MagentoOrder\Status::class);
-        //$orderStatus->method('getState')->willReturn(MagentoOrder::STATE_NEW);
-        $orderStatus->method('getData')->with('state')->willReturn(MagentoOrder::STATE_PROCESSING);
-
-        $orderStatusCollection = $this->getSimpleMock(OrderStatusCollection::class);
-        $orderStatusCollection->method('addFieldToFilter')->willReturn($orderStatusCollection);
-        $orderStatusCollection->method('joinStates')->willReturn($orderStatusCollection);
-        $orderStatusCollection->method('addStateFilter')->willReturn($orderStatusCollection);
-        $orderStatusCollection->method('getFirstItem')->willReturn($orderStatus);
-
-        $orderStatusCollectionFactory = $this->createGeneratedMock(OrderStatusCollectionFactory::class);
-        $orderStatusCollectionFactory->method('create')->willReturn($orderStatusCollection);
-
-
-        $searchCriteriaBuilder = $this->getSimpleMock(SearchCriteriaBuilder::class);
-        $orderRepository = $this->getSimpleMock(OrderRepository::class);
-        $notifierPool = $this->getSimpleMock(NotifierPool::class);
-        $orderPaymentCollectionFactory = $this->createGeneratedMock(OrderPaymentCollectionFactory::class);
-        $paymentMethodsHelper = $this->getSimpleMock(PaymentMethods::class);
-
-        $this->orderHelper = new Order(
-            $context,
-            $builder,
-            $dataHelper,
-            $adyenLogger,
-            $orderSender,
-            $transactionFactory,
-            $chargedCurrency,
-            $adyenPaymentOrderHelper,
+        $this->createOrderHelper(
+            $this->createOrderStatusCollection(MagentoOrder::STATE_PROCESSING),
             $configHelper,
-            $orderStatusCollectionFactory,
-            $searchCriteriaBuilder,
-            $orderRepository,
-            $notifierPool,
-            $orderPaymentCollectionFactory,
-            $paymentMethodsHelper
+            $adyenPaymentOrderHelper,
+            $chargedCurrency,
+            $dataHelper
         );
     }
 
@@ -150,5 +113,115 @@ class OrderTest extends TestCase
         $notificationMock->method('getAmountCurrency')->willReturn('EUR');
 
         return $notificationMock;
+    }
+
+    protected function createOrderStatusCollection($state)
+    {
+        $orderStatus = $this->createGeneratedMock(MagentoOrder\Status::class);
+        $orderStatus->method('getData')->with('state')->willReturn($state);
+
+        $orderStatusCollection = $this->getSimpleMock(OrderStatusCollection::class);
+        $orderStatusCollection->method('addFieldToFilter')->willReturn($orderStatusCollection);
+        $orderStatusCollection->method('joinStates')->willReturn($orderStatusCollection);
+        $orderStatusCollection->method('addStateFilter')->willReturn($orderStatusCollection);
+        $orderStatusCollection->method('getFirstItem')->willReturn($orderStatus);
+
+        $orderStatusCollectionFactory = $this->createGeneratedMock(OrderStatusCollectionFactory::class);
+        $orderStatusCollectionFactory->method('create')->willReturn($orderStatusCollection);
+
+        return $orderStatusCollectionFactory;
+    }
+
+    protected function createOrderHelper(
+        $orderStatusCollectionFactory = null,
+        $configHelper = null,
+        $adyenPaymentOrderHelper = null,
+        $chargedCurrency = null,
+        $dataHelper = null,
+        $builder = null,
+        $adyenLogger = null,
+        $orderSender = null,
+        $transactionFactory = null,
+        $searchCriteriaBuilder = null,
+        $orderRepository = null,
+        $notifierPool = null,
+        $orderPaymentCollectionFactory = null,
+        $paymentMethodsHelper = null
+    ) {
+        $context = $this->getSimpleMock(Context::class);
+
+        if (is_null($builder)) {
+            $builder = $this->getSimpleMock(Builder::class);
+        }
+
+        if (is_null($dataHelper)) {
+            $dataHelper = $this->getSimpleMock(Data::class);
+        }
+
+        if (is_null($adyenLogger)) {
+            $adyenLogger = $this->getSimpleMock(AdyenLogger::class);
+        }
+
+        if (is_null($orderSender)) {
+            $orderSender = $this->getSimpleMock(OrderSender::class);
+        }
+
+        if (is_null($transactionFactory)) {
+            $transactionFactory = $this->createGeneratedMock(TransactionFactory::class);
+        }
+
+        if (is_null($chargedCurrency)) {
+            $chargedCurrency = $this->getSimpleMock(ChargedCurrency::class);
+        }
+
+        if (is_null($adyenPaymentOrderHelper)) {
+            $adyenPaymentOrderHelper = $this->getSimpleMock(AdyenOrderPayment::class);
+        }
+
+        if (is_null($configHelper)) {
+            $configHelper = $this->getSimpleMock(Config::class);
+        }
+
+        if (is_null($orderStatusCollectionFactory)) {
+            $orderStatusCollectionFactory = $this->createGeneratedMock(OrderStatusCollectionFactory::class);
+        }
+
+        if (is_null($searchCriteriaBuilder)) {
+            $searchCriteriaBuilder = $this->getSimpleMock(SearchCriteriaBuilder::class);
+        }
+
+        if (is_null($orderRepository)) {
+            $orderRepository = $this->getSimpleMock(OrderRepository::class);
+        }
+
+        if (is_null($notifierPool)) {
+            $notifierPool = $this->getSimpleMock(NotifierPool::class);
+        }
+
+        if (is_null($orderPaymentCollectionFactory)) {
+            $orderPaymentCollectionFactory = $this->createGeneratedMock(OrderPaymentCollectionFactory::class);
+        }
+
+        if (is_null($paymentMethodsHelper)) {
+            $paymentMethodsHelper = $this->getSimpleMock(PaymentMethods::class);
+        }
+
+        $this->orderHelper = new Order(
+            $context,
+            $builder,
+            $dataHelper,
+            $adyenLogger,
+            $orderSender,
+            $transactionFactory,
+            $chargedCurrency,
+            $adyenPaymentOrderHelper,
+            $configHelper,
+            $orderStatusCollectionFactory,
+            $searchCriteriaBuilder,
+            $orderRepository,
+            $notifierPool,
+            $orderPaymentCollectionFactory,
+            $paymentMethodsHelper
+        );
     }
 }

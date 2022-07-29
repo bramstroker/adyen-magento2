@@ -336,13 +336,11 @@ class Order extends AbstractHelper
         return $order;
     }
 
+
     /**
-     * @param MagentoOrder $order
-     * @param $ignoreHasInvoice
-     * @return MagentoOrder
      * @throws LocalizedException
      */
-    public function holdCancelOrder(MagentoOrder $order, $ignoreHasInvoice): MagentoOrder
+    public function holdCancelOrder(MagentoOrder $order, bool $ignoreHasInvoice): MagentoOrder
     {
         if (!$this->configHelper->getNotificationsCanCancel($order->getStoreId())) {
             $this->adyenLogger->addAdyenNotificationCronjob(

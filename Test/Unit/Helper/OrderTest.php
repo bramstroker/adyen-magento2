@@ -17,6 +17,7 @@ use Adyen\Payment\Helper\Data;
 use Adyen\Payment\Helper\Order;
 use Adyen\Payment\Helper\PaymentMethods;
 use Adyen\Payment\Model\AdyenAmountCurrency;
+use Adyen\Payment\Model\Config\Source\Status\AdyenState;
 use Adyen\Payment\Model\Notification;
 use Adyen\Payment\Model\ResourceModel\Order\Payment\CollectionFactory as OrderPaymentCollectionFactory;
 use Adyen\Payment\Logger\AdyenLogger;
@@ -34,10 +35,7 @@ use PHPUnit\Framework\TestCase;
 
 class OrderTest extends TestCase
 {
-    /** @var Order */
-    private $orderHelper;
-
-    public function setUp(): void
+    public function testFinalizeOrderFinalized()
     {
         $dataHelper = $this->getSimpleMock(Data::class);
         $dataHelper->method('formatAmount')->willReturn('EUR123');
@@ -51,23 +49,77 @@ class OrderTest extends TestCase
         $configHelper = $this->getSimpleMock(Config::class);
         $configHelper->method('getConfigData')->willReturn('payment_authorized');
 
-        $this->createOrderHelper(
+        $orderHelper = $this->createOrderHelper(
             $this->createOrderStatusCollection(MagentoOrder::STATE_PROCESSING),
             $configHelper,
             $adyenPaymentOrderHelper,
             $chargedCurrency,
             $dataHelper
         );
-    }
 
-    public function testFinalizeOrderFinalized()
-    {
         $order = $this->createOrder('testStatus');
         $notification = $this->createWebhook();
 
-        //$this->orderHelper->expects($this->once())->method('setState');
         $order->expects($this->once())->method('setState')->with(MagentoOrder::STATE_PROCESSING);
-        $this->orderHelper->finalizeOrder($order, $notification);
+        $orderHelper->finalizeOrder($order, $notification);
+    }
+
+    public function testFinalizeOrderPartialPayment()
+    {
+        $dataHelper = $this->getSimpleMock(Data::class);
+        $dataHelper->method('formatAmount')->willReturn('EUR123');
+
+        $chargedCurrency = $this->getSimpleMock(ChargedCurrency::class);
+        $chargedCurrency->method('getOrderAmountCurrency')->willReturn(new AdyenAmountCurrency(1000, 'EUR'));
+
+        $adyenPaymentOrderHelper = $this->getSimpleMock(AdyenOrderPayment::class);
+        $adyenPaymentOrderHelper->method('isFullAmountFinalized')->willReturn(false);
+
+        $configHelper = $this->getSimpleMock(Config::class);
+        $configHelper->method('getConfigData')->willReturn('payment_authorized');
+
+        $orderHelper = $this->createOrderHelper(
+            $this->createOrderStatusCollection(MagentoOrder::STATE_PROCESSING),
+            $configHelper,
+            $adyenPaymentOrderHelper,
+            $chargedCurrency,
+            $dataHelper
+        );
+
+        $order = $this->createOrder('testStatus');
+        $notification = $this->createWebhook();
+
+        $order->expects($this->never())->method('setState')->with(MagentoOrder::STATE_PROCESSING);
+        $orderHelper->finalizeOrder($order, $notification);
+    }
+
+    public function testFinalizeOrderMaintainState()
+    {
+        $dataHelper = $this->getSimpleMock(Data::class);
+        $dataHelper->method('formatAmount')->willReturn('EUR123');
+
+        $chargedCurrency = $this->getSimpleMock(ChargedCurrency::class);
+        $chargedCurrency->method('getOrderAmountCurrency')->willReturn(new AdyenAmountCurrency(1000, 'EUR'));
+
+        $adyenPaymentOrderHelper = $this->getSimpleMock(AdyenOrderPayment::class);
+        $adyenPaymentOrderHelper->method('isFullAmountFinalized')->willReturn(false);
+
+        $configHelper = $this->getSimpleMock(Config::class);
+        $configHelper->method('getConfigData')->willReturn(AdyenState::STATE_MAINTAIN);
+
+        $orderHelper = $this->createOrderHelper(
+            $this->createOrderStatusCollection(MagentoOrder::STATE_PROCESSING),
+            $configHelper,
+            $adyenPaymentOrderHelper,
+            $chargedCurrency,
+            $dataHelper
+        );
+
+        $order = $this->createOrder('testStatus');
+        $notification = $this->createWebhook();
+
+        $order->expects($this->never())->method('setState')->with(MagentoOrder::STATE_PROCESSING);
+        $orderHelper->finalizeOrder($order, $notification);
     }
 
     /**
@@ -206,7 +258,7 @@ class OrderTest extends TestCase
             $paymentMethodsHelper = $this->getSimpleMock(PaymentMethods::class);
         }
 
-        $this->orderHelper = new Order(
+        return new Order(
             $context,
             $builder,
             $dataHelper,

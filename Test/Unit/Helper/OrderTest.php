@@ -122,6 +122,63 @@ class OrderTest extends TestCase
         $orderHelper->finalizeOrder($order, $notification);
     }
 
+    public function testHoldCancelOrderCancel()
+    {
+        $configHelper = $this->getSimpleMock(Config::class);
+        $configHelper->method('getConfigData')->willReturn('payment_cancelled');
+        $configHelper->method('getNotificationsCanCancel')->willReturn(true);
+
+        $orderHelper = $this->createOrderHelper(
+            $this->createOrderStatusCollection(MagentoOrder::STATE_PROCESSING),
+            $configHelper,
+        );
+
+        $order = $this->createOrder('testStatus');
+        $order->method('hasInvoices')->willReturn(false);
+        $order->method('canCancel')->willReturn(true);
+
+        $order->expects($this->once())->method('cancel');
+        $orderHelper->holdCancelOrder($order, false);
+    }
+
+    public function testHoldCancelOrderHold()
+    {
+        $configHelper = $this->getSimpleMock(Config::class);
+        $configHelper->method('getConfigData')->willReturn(MagentoOrder::STATE_HOLDED);
+        $configHelper->method('getNotificationsCanCancel')->willReturn(true);
+
+        $orderHelper = $this->createOrderHelper(
+            $this->createOrderStatusCollection(MagentoOrder::STATE_PROCESSING),
+            $configHelper,
+        );
+
+        $order = $this->createOrder('testStatus');
+        $order->method('hasInvoices')->willReturn(false);
+        $order->method('canHold')->willReturn(true);
+
+        $order->expects($this->once())->method('hold');
+        $orderHelper->holdCancelOrder($order, false);
+    }
+
+    public function testHoldCancelOrderNotCancellable()
+    {
+        $configHelper = $this->getSimpleMock(Config::class);
+        $configHelper->method('getConfigData')->willReturn('payment_cancelled');
+        $configHelper->method('getNotificationsCanCancel')->willReturn(true);
+
+        $orderHelper = $this->createOrderHelper(
+            $this->createOrderStatusCollection(MagentoOrder::STATE_PROCESSING),
+            $configHelper,
+        );
+
+        $order = $this->createOrder('testStatus');
+        $order->method('hasInvoices')->willReturn(true);
+
+        $order->expects($this->never())->method('cancel');
+        $order->expects($this->never())->method('hold');
+        $orderHelper->holdCancelOrder($order, false);
+    }
+
     /**
      * TODO: Move this function to a parent
      */
